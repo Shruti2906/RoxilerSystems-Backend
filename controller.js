@@ -1,5 +1,6 @@
 const axios = require('axios')
-const ProductTransaction = require('./models/ProductTransaction.model')
+const ProductTransaction = require('./models/ProductTransaction.model');
+const { route } = require('./routes');
 
 exports.getStatus = (req, res) => {
     res.status(200).json({
@@ -193,19 +194,64 @@ exports.getBarChartData = async (req, res, next) => {
 
     } catch (error) {
         console.log("Error fetching records:", error);
-        res.status(500).json({ error: error });
+            res.status(500).json({ error: error });
     }
 }
 
-function getPriceRange(price) {
-    if (price >= 0 && price <= 100) return '0 - 100';
-    else if (price <= 200) return '101 - 200';
-    else if (price <= 300) return '201 - 300';
-    else if (price <= 400) return '301 - 400';
-    else if (price <= 500) return '401 - 500';
-    else if (price <= 600) return '501 - 600';
-    else if (price <= 700) return '601 - 700';
-    else if (price <= 800) return '701 - 800';
-    else if (price <= 900) return '801 - 900';
-    else return '901-above';
+exports.getPieChartData = async (req, res, next) => {
+
+    try {
+        const month = req.query.month || 3;
+    
+        const result = await ProductTransaction.aggregate([
+          {
+            $match: {
+              $expr: {
+                $eq: [{ $month: '$dateOfSale' }, parseInt(month)],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: '$category',
+              count: { $sum: 1 },
+            },
+          },
+        ]);
+    
+        const pieChartData = result.map((item) => ({
+          category: item._id,
+          itemCount: item.count,
+        }));
+    
+        return res.status(200).json({ pieChartData });
+      } catch (error) {
+        console.error('Error fetching pie chart data:', error);
+            res.status(500).json({ error: error });
+        }
+}
+
+exports.combinedData = async (req, res, next) => {
+
+    try{
+        const statisticsResponse = await this.getstatistics(req, res, next);
+        const barChartDataResponse = await this.getBarChartData(req, res, next);
+        const pieChartDataResponse = await this.getPieChartData(req, res, next);
+
+        const combinedResponse = {
+            statistics : statisticsResponse,
+            barChartData : barChartDataResponse.result,
+            pieChartData : pieChartDataResponse.response
+        }
+
+        return res.status(200).json({
+            combinedResponse
+        })
+
+    }catch(error){
+        console.error('Error fetching pie chart data:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: error });
+          }
+    }
 }
